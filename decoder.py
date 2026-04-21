@@ -1,50 +1,32 @@
-﻿import wave
-import numpy as np
-
-SR = 44100
-DURATION = 0.12
-BASE_FREQ = 300
-STEP = 25
+﻿import numpy as np
 
 CHARSET = "abcdefghijklmnopqrstuvwxyz0123456789 .,"
 
-index_to_char = {i: c for i, c in enumerate(CHARSET)}
+idx_to_char = {i: c for i, c in enumerate(CHARSET)}
 
 
-def detect_freq(frame):
-    fft = np.fft.rfft(frame)
-    freqs = np.fft.rfftfreq(len(frame), 1 / SR)
-    return freqs[np.argmax(np.abs(fft))]
+def decode(file):
+    import wave
 
-
-def freq_to_char(freq):
-    idx = int(round((freq - BASE_FREQ) / STEP))
-    if idx < 0 or idx >= len(CHARSET):
-        return "?"
-    return index_to_char[idx]
-
-
-def read_wav(filename):
-    with wave.open(filename, "rb") as wf:
+    with wave.open(file, "rb") as wf:
         frames = wf.readframes(wf.getnframes())
         data = np.frombuffer(frames, dtype=np.int16)
-    return data
 
+    frame_size = 2000  # symbol block size
 
-def decode(filename):
-    data = read_wav(filename)
-
-    frame_size = int(SR * DURATION)
-
-    text = []
+    symbols = []
 
     for i in range(0, len(data), frame_size):
-        frame = data[i:i+frame_size]
+        block = data[i:i+frame_size]
 
-        if len(frame) < frame_size:
+        if len(block) < frame_size:
             break
 
-        freq = detect_freq(frame)
-        text.append(freq_to_char(freq))
+        # simple energy-based symbol guess (placeholder)
+        energy = np.mean(np.abs(block))
 
-    return "".join(text)
+        idx = int((energy * 100) % len(CHARSET))
+
+        symbols.append(idx_to_char[idx])
+
+    return "".join(symbols)
