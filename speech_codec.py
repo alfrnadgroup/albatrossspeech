@@ -1,55 +1,63 @@
 import numpy as np
 import wave
-import os
-from gtts import gTTS
-from pydub import AudioSegment
-
 from codec_core import apply_modulation
 
 SR = 44100
+DURATION = 0.12
 
 
-def text_to_speech(text, filename="__temp.wav"):
-    mp3_file = "__temp.mp3"
-
-    # 1. generate mp3 using gTTS
-    tts = gTTS(text=text, lang='en')
-    tts.save(mp3_file)
-
-    # 2. convert mp3 ? wav
-    audio = AudioSegment.from_mp3(mp3_file)
-    audio = audio.set_frame_rate(SR).set_channels(1)
-    audio.export(filename, format="wav")
-
-    # cleanup mp3
-    os.remove(mp3_file)
-
-    return filename
+# -------------------------
+# SIMPLE PHONEME-LIKE TONES
+# -------------------------
+def char_to_freq(ch):
+    base = 300
+    step = 20
+    return base + (ord(ch) % 32) * step
 
 
+def generate_speech_like(text):
+    signal = []
+
+    for ch in text:
+        freq = char_to_freq(ch)
+
+        t = np.linspace(0, DURATION, int(SR * DURATION), endpoint=False)
+
+        # add harmonics ? more "speech-like"
+        tone = (
+            np.sin(2 * np.pi * freq * t) +
+            0.5 * np.sin(2 * np.pi * freq * 2 * t) +
+            0.3 * np.sin(2 * np.pi * freq * 3 * t)
+        )
+
+        # envelope (speech shaping)
+        envelope = np.linspace(1, 0.3, len(tone))
+        tone *= envelope
+
+        signal.append(tone)
+
+    return np.concatenate(signal)
+
+
+# -------------------------
+# MAIN ENCODE
+# -------------------------
 def encode_speech(text, output="output.wav", key=42):
-    temp_file = "__temp.wav"
+    raw = generate_speech_like(text)
 
-    # 1. speech generation
-    text_to_speech(text, temp_file)
+    # normalize
+    raw = raw / np.max(np.abs(raw))
 
-    # 2. read wav
-    with wave.open(temp_file, "rb") as wf:
-        frames = wf.readframes(wf.getnframes())
-        signal = np.frombuffer(frames, dtype=np.int16)
+    raw = (raw * 32767).astype(np.int16)
 
-    # 3. apply modulation
-    modulated = apply_modulation(signal, key)
+    # apply your chaos codec
+    modulated = apply_modulation(raw, key)
 
-    # 4. save final
+    # save
     with wave.open(output, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(SR)
         wf.writeframes(modulated.tobytes())
-
-    # cleanup
-    if os.path.exists(temp_file):
-        os.remove(temp_file)
 
     return output
