@@ -6,9 +6,6 @@ SR = 44100
 DURATION = 0.12
 
 
-# -------------------------
-# SIMPLE PHONEME-LIKE TONES
-# -------------------------
 def char_to_freq(ch):
     base = 300
     step = 20
@@ -23,14 +20,12 @@ def generate_speech_like(text):
 
         t = np.linspace(0, DURATION, int(SR * DURATION), endpoint=False)
 
-        # add harmonics ? more "speech-like"
         tone = (
             np.sin(2 * np.pi * freq * t) +
             0.5 * np.sin(2 * np.pi * freq * 2 * t) +
             0.3 * np.sin(2 * np.pi * freq * 3 * t)
         )
 
-        # envelope (speech shaping)
         envelope = np.linspace(1, 0.3, len(tone))
         tone *= envelope
 
@@ -39,21 +34,14 @@ def generate_speech_like(text):
     return np.concatenate(signal)
 
 
-# -------------------------
-# MAIN ENCODE
-# -------------------------
 def encode_speech(text, output="output.wav", key=42):
     raw = generate_speech_like(text)
 
-    # normalize
     raw = raw / np.max(np.abs(raw))
-
     raw = (raw * 32767).astype(np.int16)
 
-    # apply your chaos codec
     modulated = apply_modulation(raw, key)
 
-    # save
     with wave.open(output, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)

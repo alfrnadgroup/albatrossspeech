@@ -14,13 +14,15 @@ def chaos_sequence(key, length):
 def apply_modulation(signal, key=42):
     signal = signal.astype(np.float32)
 
-    signal = signal / np.max(np.abs(signal))
+    max_val = np.max(np.abs(signal))
+    if max_val == 0:
+        return signal.astype(np.int16)
+
+    signal = signal / max_val
 
     chaos = chaos_sequence(key, len(signal))
 
-    # 🔥 LIGHT modulation (safe for speech)
     modulated = signal * (0.9 + 0.2 * chaos)
-
     modulated = np.clip(modulated, -1, 1)
 
     return (modulated * 32767).astype(np.int16)
