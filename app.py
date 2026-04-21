@@ -1,26 +1,48 @@
-﻿from flask import Flask, request, send_file
+﻿import os
+from flask import Flask, request, send_file
+
 from encoder import encode
 
 app = Flask(__name__)
 
+
 @app.route("/")
 def home():
-    return "✅ Speech Codec (No Temp Files)"
+    return "✅ Albatross Speech Codec Running"
 
 
 @app.route("/encode", methods=["POST"])
 def encode_api():
-    data = request.get_json()
+    try:
+        data = request.get_json(silent=True)
 
-    text = data.get("text", "")
-    key = data.get("key", 42)
+        if not data:
+            return "❌ No JSON received", 400
 
-    filename = "output.wav"
+        text = data.get("text", "")
+        key = data.get("key", 42)
 
-    encode(text, filename, key)
+        if not text:
+            return "❌ Text is empty", 400
 
-    return send_file(filename, as_attachment=True)
+        filename = "output.wav"
+
+        encode(text, filename, key)
+
+        if not os.path.exists(filename):
+            return "❌ File not created", 500
+
+        return send_file(
+            filename,
+            as_attachment=True,
+            mimetype="audio/wav"
+        )
+
+    except Exception as e:
+        print("ERROR:", str(e))  # shows in Render logs
+        return f"❌ Server error: {str(e)}", 500
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
