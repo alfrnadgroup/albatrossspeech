@@ -1,6 +1,6 @@
 ﻿from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
-from speech_codec import encode_speech
+from speech_codec import encode_speech, decode_audio
 import numpy as np
 import wave
 import io
@@ -10,19 +10,13 @@ CORS(app)
 
 SR = 44100
 
-# prevent upload issues
-app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
-
 
 # -------------------------
-# ENCODE (DOWNLOAD FIXED)
+# ENCODE
 # -------------------------
 @app.route("/encode", methods=["POST"])
 def encode():
     data = request.get_json()
-
-    if not data:
-        return jsonify({"error": "no json"}), 400
 
     text = data.get("text", "")
     filename = data.get("filename", "speech.wav")
@@ -48,21 +42,21 @@ def encode():
 
 
 # -------------------------
-# DECODE (UPLOAD FIXED)
+# DECODE
 # -------------------------
 @app.route("/decode", methods=["POST"])
 def decode():
-    if "file" not in request.files:
-        return jsonify({"error": "no file"}), 400
+    file = request.files.get("file")
 
-    file = request.files["file"]
+    if not file:
+        return jsonify({"error": "no file"}), 400
 
     data = file.read()
     audio = np.frombuffer(data, dtype=np.int16)
 
-    return jsonify({
-        "decoded": f"audio_received_{len(audio)}_samples"
-    })
+    text = decode_audio(audio)
+
+    return jsonify({"decoded": text})
 
 
 if __name__ == "__main__":
