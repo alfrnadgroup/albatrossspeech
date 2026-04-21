@@ -1,61 +1,67 @@
 ﻿from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
-from encoder import encode
-from decoder import decode
-import os
+from speech_codec import encode_speech
+import numpy as np
+import wave
+import io
 
 app = Flask(__name__)
 CORS(app)
 
 
-@app.route("/")
-def home():
-    return "Albatross Speech Codec LIVE"
+SR = 44100
 
 
 # -------------------
-# ENCODE
+# ENCODE (STREAM)
 # -------------------
 @app.route("/encode", methods=["POST"])
-def encode_api():
+def encode():
     data = request.get_json()
 
     text = data.get("text", "")
-    key = data.get("key", None)
-    filename = data.get("filename", "output.wav")
 
-    # generate file
-    filepath = encode(text, filename, key)
+    audio = encode_speech(text)
 
-    if not os.path.exists(filepath):
-        return jsonify({"error": "file not created"}), 500
+    buffer = io.BytesIO()
+
+    with wave.open(buffer, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(SR)
+        wf.writeframes(audio.tobytes())
+
+    buffer.seek(0)
 
     return send_file(
-        filepath,
+        buffer,
         mimetype="audio/wav",
         as_attachment=True,
-        download_name=filename
+        download_name="speech.wav"
     )
 
 
 # -------------------
-# DECODE
+# DECODE (SIMPLE DEMO)
 # -------------------
 @app.route("/decode", methods=["POST"])
-def decode_api():
+def decode():
     file = request.files.get("file")
 
     if not file:
-        return jsonify({"error": "no file uploaded"}), 400
+        return jsonify({"error": "no file"}), 400
 
-    path = "temp.wav"
-    file.save(path)
+    data = file.read()
 
-    result = decode(path)
+    audio = np.frombuffer(data, dtype=np.int16)
 
-    return jsonify({"decoded": result})
+    # very basic fallback (placeholder)
+    length = len(audio) // (SR // 10)
+
+    text = "decoded_" + str(length)
+
+    return jsonify({"decoded": text})
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)

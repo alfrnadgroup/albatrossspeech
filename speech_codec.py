@@ -1,13 +1,9 @@
 import numpy as np
 import wave
-from codec_core import apply_modulation
 
 SR = 44100
 
 
-# -------------------------
-# PHONEME MAP (SIMPLIFIED)
-# -------------------------
 PHONEMES = {
     "a": ("vowel", [800, 1200, 2500]),
     "e": ("vowel", [500, 1700, 2500]),
@@ -36,68 +32,49 @@ PHONEMES = {
 }
 
 
-# -------------------------
-# TIMING CONTROL
-# -------------------------
 def duration_for(ch):
     if ch in "aeiou":
         return 0.18
     elif ch == " ":
         return 0.12
-    else:
-        return 0.10
+    return 0.10
 
 
-# -------------------------
-# ENVELOPE
-# -------------------------
-def envelope(length):
-    attack = int(length * 0.15)
-    release = int(length * 0.25)
+def envelope(n):
+    a = int(n * 0.15)
+    r = int(n * 0.25)
 
-    env = np.ones(length)
-    env[:attack] = np.linspace(0, 1, attack)
-    env[-release:] = np.linspace(1, 0, release)
+    env = np.ones(n)
+    if a > 0:
+        env[:a] = np.linspace(0, 1, a)
+    if r > 0:
+        env[-r:] = np.linspace(1, 0, r)
 
     return env
 
 
-# -------------------------
-# SYNTHESIS
-# -------------------------
 def synth_vowel(freqs, dur):
     t = np.linspace(0, dur, int(SR * dur), False)
-    signal = np.zeros_like(t)
-
-    for f in freqs:
-        signal += np.sin(2 * np.pi * f * t)
-
-    signal /= len(freqs)
-    return signal * envelope(len(signal))
+    sig = sum(np.sin(2 * np.pi * f * t) for f in freqs)
+    sig /= len(freqs)
+    return sig * envelope(len(sig))
 
 
 def synth_voiced(base, dur):
     t = np.linspace(0, dur, int(SR * dur), False)
-
-    signal = (
+    sig = (
         np.sin(2 * np.pi * base * t) +
         0.5 * np.sin(2 * np.pi * base * 2 * t)
     )
-
-    return signal * envelope(len(signal))
+    return sig * envelope(len(sig))
 
 
 def synth_noise(dur):
-    t = np.linspace(0, dur, int(SR * dur), False)
-    noise = np.random.uniform(-1, 1, len(t))
-
-    env = envelope(len(noise))
-    return noise * env * 0.6
+    n = int(SR * dur)
+    noise = np.random.uniform(-1, 1, n)
+    return noise * envelope(n) * 0.6
 
 
-# -------------------------
-# TEXT ? SPEECH
-# -------------------------
 def text_to_signal(text):
     signal = []
 
@@ -112,40 +89,23 @@ def text_to_signal(text):
 
         if typ == "vowel":
             seg = synth_vowel(val, dur)
-
         elif typ == "voiced":
             seg = synth_voiced(val, dur)
-
         else:
             seg = synth_noise(dur)
 
         signal.append(seg)
 
     full = np.concatenate(signal)
-
-    # ?? smoothing (critical for intelligibility)
     smooth = np.convolve(full, np.ones(300)/300, mode='same')
 
     return smooth
 
 
-# -------------------------
-# MAIN ENCODE
-# -------------------------
-def encode_speech(text, output="output.wav", key=42):
+def encode_speech(text):
     raw = text_to_signal(text)
 
     raw = raw / np.max(np.abs(raw))
     raw = (raw * 32767).astype(np.int16)
 
-    # ?? For clarity testing ? disable modulation first
-    # modulated = apply_modulation(raw, key)
-    modulated = raw
-
-    with wave.open(output, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(SR)
-        wf.writeframes(modulated.tobytes())
-
-    return output
+    return raw
