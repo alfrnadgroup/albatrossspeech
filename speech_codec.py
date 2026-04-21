@@ -16,30 +16,30 @@ def char_to_freq(ch):
     return BASE_FREQ + idx * STEP
 
 
-def synth_symbol(freq):
+def synth(freq):
     t = np.linspace(0, DURATION, int(SR * DURATION), False)
 
-    signal = np.sin(2 * np.pi * freq * t)
-    signal += 0.3 * np.sin(2 * np.pi * freq * 2 * t)
+    wave_signal = np.sin(2 * np.pi * freq * t)
+    wave_signal += 0.3 * np.sin(2 * np.pi * freq * 2 * t)
 
-    return signal
+    return wave_signal
 
 
-def encode_speech(text, output="output.wav", key=42):
-    signal = []
+def encode_speech(text, output, key=42):
+    audio = []
 
-    for ch in text.lower():
-        signal.append(synth_symbol(char_to_freq(ch)))
+    for ch in text:
+        audio.append(synth(char_to_freq(ch)))
 
-    full = np.concatenate(signal)
+    signal = np.concatenate(audio)
 
-    full = full / np.max(np.abs(full))
-    full = (full * 32767).astype(np.int16)
+    signal = signal / np.max(np.abs(signal))
+    signal = (signal * 32767).astype(np.int16)
 
     with wave.open(output, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(SR)
-        wf.writeframes(full.tobytes())
+        wf.writeframes(signal.tobytes())
 
     return output

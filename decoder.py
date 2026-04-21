@@ -11,9 +11,6 @@ CHARSET = "abcdefghijklmnopqrstuvwxyz0123456789 .,"
 index_to_char = {i: c for i, c in enumerate(CHARSET)}
 
 
-# -------------------------
-# FFT
-# -------------------------
 def detect_freq(frame):
     fft = np.fft.rfft(frame)
     freqs = np.fft.rfftfreq(len(frame), 1 / SR)
@@ -22,40 +19,32 @@ def detect_freq(frame):
 
 def freq_to_char(freq):
     idx = int(round((freq - BASE_FREQ) / STEP))
-
     if idx < 0 or idx >= len(CHARSET):
         return "?"
-
     return index_to_char[idx]
 
 
-# -------------------------
-# PURE WAV READER (NO SCIPY)
-# -------------------------
 def read_wav(filename):
     with wave.open(filename, "rb") as wf:
         frames = wf.readframes(wf.getnframes())
-        audio = np.frombuffer(frames, dtype=np.int16)
-    return SR, audio
+        data = np.frombuffer(frames, dtype=np.int16)
+    return data
 
 
-# -------------------------
-# DECODE
-# -------------------------
 def decode(filename):
-    sr, data = read_wav(filename)
+    data = read_wav(filename)
 
     frame_size = int(SR * DURATION)
 
-    chars = []
+    text = []
 
     for i in range(0, len(data), frame_size):
-        frame = data[i:i + frame_size]
+        frame = data[i:i+frame_size]
 
         if len(frame) < frame_size:
             break
 
         freq = detect_freq(frame)
-        chars.append(freq_to_char(freq))
+        text.append(freq_to_char(freq))
 
-    return "".join(chars)
+    return "".join(text)
