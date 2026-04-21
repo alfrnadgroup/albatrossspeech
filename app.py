@@ -1,9 +1,11 @@
 ﻿import os
 from flask import Flask, request, send_file
+from flask_cors import CORS
 
 from encoder import encode
 
 app = Flask(__name__)
+CORS(app)  # 🔥 ENABLE CORS
 
 
 @app.route("/")
@@ -29,9 +31,6 @@ def encode_api():
 
         encode(text, filename, key)
 
-        if not os.path.exists(filename):
-            return "❌ File not created", 500
-
         return send_file(
             filename,
             as_attachment=True,
@@ -39,7 +38,7 @@ def encode_api():
         )
 
     except Exception as e:
-        print("ERROR:", str(e))  # shows in Render logs
+        print("ERROR:", str(e))
         return f"❌ Server error: {str(e)}", 500
 
 
