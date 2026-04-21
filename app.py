@@ -20,14 +20,16 @@ def encode():
 
     text = data.get("text", "")
     filename = data.get("filename", "speech.wav")
-    key = data.get("key", None)
 
-    audio_file = encode_speech(text, key=key)
+    audio = encode_speech(text)
 
     buffer = io.BytesIO()
 
-    with wave.open(audio_file, "rb") as wf:
-        buffer.write(wf.readframes(wf.getnframes()))
+    with wave.open(buffer, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(SR)
+        wf.writeframes(audio.tobytes())
 
     buffer.seek(0)
 
@@ -49,7 +51,8 @@ def decode():
     if not file:
         return jsonify({"error": "no file"}), 400
 
-    audio = np.frombuffer(file.read(), dtype=np.int16)
+    data = file.read()
+    audio = np.frombuffer(data, dtype=np.int16)
 
     text = decode_audio(audio)
 
