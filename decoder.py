@@ -6,7 +6,6 @@ DURATION = 0.12
 BASE_FREQ = 300
 STEP = 25
 
-
 CHARSET = "abcdefghijklmnopqrstuvwxyz0123456789 .,"
 
 index_to_char = {i: c for i, c in enumerate(CHARSET)}
@@ -20,10 +19,8 @@ def detect_freq(frame):
 
 def freq_to_char(freq):
     idx = int(round((freq - BASE_FREQ) / STEP))
-
     if idx < 0 or idx >= len(CHARSET):
         return "?"
-
     return index_to_char[idx]
 
 
@@ -38,8 +35,7 @@ def decode(filename):
     chars = []
 
     for i in range(0, len(data), frame_size):
-        frame = data[i:i+frame_size]
-
+        frame = data[i:i + frame_size]
         if len(frame) < frame_size:
             break
 

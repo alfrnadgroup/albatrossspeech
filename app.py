@@ -1,45 +1,48 @@
-﻿import os
-from flask import Flask, request, send_file
-from flask_cors import CORS
-
+﻿from flask import Flask, request, send_file, jsonify
 from encoder import encode
+from decoder import decode
+import os
 
 app = Flask(__name__)
-CORS(app)  # 🔥 ENABLE CORS
 
 
 @app.route("/")
 def home():
-    return "✅ Albatross Speech Codec Running"
+    return "Albatross Speech Codec Running"
 
 
+# -------------------
+# ENCODE
+# -------------------
 @app.route("/encode", methods=["POST"])
 def encode_api():
-    try:
-        data = request.get_json(silent=True)
+    data = request.get_json()
 
-        if not data:
-            return "❌ No JSON received", 400
+    text = data.get("text", "")
+    key = data.get("key", None)
+    filename = data.get("filename", "output.wav")
 
-        text = data.get("text", "")
-        key = data.get("key", 42)
+    encode(text, filename, key)
 
-        if not text:
-            return "❌ Text is empty", 400
+    return send_file(filename, mimetype="audio/wav", as_attachment=True)
 
-        filename = "output.wav"
 
-        encode(text, filename, key)
+# -------------------
+# DECODE
+# -------------------
+@app.route("/decode", methods=["POST"])
+def decode_api():
+    file = request.files.get("file")
 
-        return send_file(
-            filename,
-            as_attachment=True,
-            mimetype="audio/wav"
-        )
+    if not file:
+        return "No file uploaded", 400
 
-    except Exception as e:
-        print("ERROR:", str(e))
-        return f"❌ Server error: {str(e)}", 500
+    path = "temp.wav"
+    file.save(path)
+
+    result = decode(path)
+
+    return jsonify({"decoded": result})
 
 
 if __name__ == "__main__":

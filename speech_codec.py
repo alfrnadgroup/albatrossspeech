@@ -6,7 +6,6 @@ DURATION = 0.12
 BASE_FREQ = 300
 STEP = 25
 
-
 CHARSET = "abcdefghijklmnopqrstuvwxyz0123456789 .,"
 
 char_to_index = {c: i for i, c in enumerate(CHARSET)}
@@ -26,13 +25,11 @@ def synth_symbol(freq):
     return signal
 
 
-# ?? FIXED SIGNATURE
 def encode_speech(text, output="output.wav", key=42):
     signal = []
 
     for ch in text.lower():
-        freq = char_to_freq(ch)
-        signal.append(synth_symbol(freq))
+        signal.append(synth_symbol(char_to_freq(ch)))
 
     full = np.concatenate(signal)
 
