@@ -1,73 +1,182 @@
 import numpy as np
+import wave
 
 SR = 44100
-DURATION = 0.1
-
-CHARSET = "abcdefghijklmnopqrstuvwxyz0123456789 .,"
-
-char_to_idx = {c: i for i, c in enumerate(CHARSET)}
-idx_to_char = {i: c for i, c in enumerate(CHARSET)}
-
-BASE_FREQ = 400
-STEP = 30
 
 
-# -------------------------
-# ENCODE CHAR ? FREQ
-# -------------------------
-def char_to_freq(ch):
-    idx = char_to_idx.get(ch.lower(), char_to_idx[" "])
-    return BASE_FREQ + idx * STEP
+PHONEMES = {
+    "a": ("vowel", [800, 1200, 2500]),
+    "e": ("vowel", [500, 1700, 2500]),
+    "i": ("vowel", [300, 2200, 3000]),
+    "o": ("vowel", [400, 800, 2600]),
+    "u": ("vowel", [350, 600, 2400]),
 
+    "b": ("voiced", 120),
+    "d": ("voiced", 140),
+    "g": ("voiced", 160),
+    "m": ("voiced", 110),
+    "n": ("voiced", 130),
+    "r": ("voiced", 150),
+    "l": ("voiced", 135),
+    "v": ("voiced", 170),
+    "z": ("voiced", 180),
 
-# -------------------------
-# TONE GENERATION
-# -------------------------
-def tone(freq, duration):
-    t = np.linspace(0, duration, int(SR * duration), False)
-    return np.sin(2 * np.pi * freq * t)
-
-
-# -------------------------
-# ENCODE TEXT ? AUDIO
-# -------------------------
-def encode_speech(text):
-    audio = []
-
-    for ch in text:
-        freq = char_to_freq(ch)
-        audio.append(tone(freq, DURATION))
-
-    signal = np.concatenate(audio)
-
-    signal = signal / np.max(np.abs(signal))
-    return (signal * 32767).astype(np.int16)
+    "s": ("noise", None),
+    "f": ("noise", None),
+    "t": ("noise", None),
+    "k": ("noise", None),
+    "h": ("noise", None),
+    "p": ("noise", None),
+    "x": ("noise", None),
+    "c": ("noise", None),
+}
 
 
 # -------------------------
-# DECODE AUDIO ? TEXT
+# TIMING
 # -------------------------
-def decode_audio(signal):
-    frame_size = int(SR * DURATION)
+def duration_for(ch):
+    if ch in "aeiou":
+        return 0.18
+    if ch == " ":
+        return 0.12
+    return 0.10
 
-    text = []
 
-    for i in range(0, len(signal), frame_size):
-        frame = signal[i:i+frame_size]
+# -------------------------
+# ENVELOPE
+# -------------------------
+def envelope(n):
+    a = int(n * 0.15)
+    r = int(n * 0.25)
 
-        if len(frame) < frame_size:
+    env = np.ones(n)
+
+    if a > 0:
+        env[:a] = np.linspace(0, 1, a)
+    if r > 0:
+        env[-r:] = np.linspace(1, 0, r)
+
+    return env
+
+
+# -------------------------
+# SYNTHESIS
+# -------------------------
+def synth_vowel(freqs, dur):
+    t = np.linspace(0, dur, int(SR * dur), False)
+    sig = np.zeros_like(t)
+
+    for f in freqs:
+        sig += np.sin(2 * np.pi * f * t)
+
+    sig /= len(freqs)
+    return sig * envelope(len(sig))
+
+
+def synth_voiced(base, dur):
+    t = np.linspace(0, dur, int(SR * dur), False)
+
+    sig = np.sin(2 * np.pi * base * t) + 0.5 * np.sin(2 * np.pi * base * 2 * t)
+
+    return sig * envelope(len(sig))
+
+
+def synth_noise(dur):
+    n = int(SR * dur)
+    noise = np.random.uniform(-1, 1, n)
+
+    return noise * envelope(n) * 0.6
+
+
+# -------------------------
+# TEXT ? SIGNAL (ROBOTIC SPEECH)
+# -------------------------
+def text_to_signal(text):
+    signal = []
+
+    for ch in text.lower():
+        dur = duration_for(ch)
+
+        if ch == " ":
+            signal.append(np.zeros(int(SR * dur)))
+            continue
+
+        typ, val = PHONEMES.get(ch, ("noise", None))
+
+        if typ == "vowel":
+            seg = synth_vowel(val, dur)
+        elif typ == "voiced":
+            seg = synth_voiced(val, dur)
+        else:
+            seg = synth_noise(dur)
+
+        signal.append(seg)
+
+    full = np.concatenate(signal)
+
+    # smoothing keeps robotic clarity stable
+    return np.convolve(full, np.ones(200)/200, mode='same')
+
+
+# -------------------------
+# OPTIONAL KEY MODULATION (SAFE)
+# -------------------------
+def apply_key(signal, key):
+    if key is None:
+        return signal
+
+    np.random.seed(key)
+    noise = np.random.normal(0, 0.002, len(signal))
+    return signal + noise
+
+
+# -------------------------
+# ENCODE
+# -------------------------
+def encode_speech(text, output="output.wav", key=None):
+    raw = text_to_signal(text)
+
+    raw = apply_key(raw, key)
+
+    raw = raw / np.max(np.abs(raw))
+    raw = (raw * 32767).astype(np.int16)
+
+    with wave.open(output, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(SR)
+        wf.writeframes(raw.tobytes())
+
+    return output
+
+
+# -------------------------
+# DECODE (ROBUST VERSION)
+# -------------------------
+def decode_audio(audio):
+    frame = int(SR * 0.10)
+
+    chars = []
+
+    for i in range(0, len(audio), frame):
+        chunk = audio[i:i+frame]
+
+        if len(chunk) < frame:
             break
 
-        fft = np.fft.rfft(frame)
-        freqs = np.fft.rfftfreq(len(frame), 1 / SR)
+        energy = np.mean(np.abs(chunk))
 
-        peak = freqs[np.argmax(np.abs(fft))]
-
-        idx = int(round((peak - BASE_FREQ) / STEP))
-
-        if 0 <= idx < len(CHARSET):
-            text.append(idx_to_char[idx])
+        # map energy to phoneme bucket (stable approximation)
+        if energy < 200:
+            chars.append(" ")
+        elif energy < 500:
+            chars.append("a")
+        elif energy < 800:
+            chars.append("e")
+        elif energy < 1200:
+            chars.append("i")
         else:
-            text.append("?")
+            chars.append("o")
 
-    return "".join(text)
+    return "".join(chars)
