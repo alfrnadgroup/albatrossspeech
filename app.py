@@ -8,18 +8,24 @@ import io
 app = Flask(__name__)
 CORS(app)
 
-
 SR = 44100
 
+# prevent upload issues
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 
-# -------------------
-# ENCODE (STREAM)
-# -------------------
+
+# -------------------------
+# ENCODE (DOWNLOAD FIXED)
+# -------------------------
 @app.route("/encode", methods=["POST"])
 def encode():
     data = request.get_json()
 
+    if not data:
+        return jsonify({"error": "no json"}), 400
+
     text = data.get("text", "")
+    filename = data.get("filename", "speech.wav")
 
     audio = encode_speech(text)
 
@@ -37,30 +43,26 @@ def encode():
         buffer,
         mimetype="audio/wav",
         as_attachment=True,
-        download_name="speech.wav"
+        download_name=filename
     )
 
 
-# -------------------
-# DECODE (SIMPLE DEMO)
-# -------------------
+# -------------------------
+# DECODE (UPLOAD FIXED)
+# -------------------------
 @app.route("/decode", methods=["POST"])
 def decode():
-    file = request.files.get("file")
-
-    if not file:
+    if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
 
-    data = file.read()
+    file = request.files["file"]
 
+    data = file.read()
     audio = np.frombuffer(data, dtype=np.int16)
 
-    # very basic fallback (placeholder)
-    length = len(audio) // (SR // 10)
-
-    text = "decoded_" + str(length)
-
-    return jsonify({"decoded": text})
+    return jsonify({
+        "decoded": f"audio_received_{len(audio)}_samples"
+    })
 
 
 if __name__ == "__main__":

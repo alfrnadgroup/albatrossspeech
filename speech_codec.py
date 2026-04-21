@@ -1,8 +1,6 @@
 import numpy as np
-import wave
 
 SR = 44100
-
 
 PHONEMES = {
     "a": ("vowel", [800, 1200, 2500]),
@@ -32,80 +30,71 @@ PHONEMES = {
 }
 
 
-def duration_for(ch):
+def duration(ch):
     if ch in "aeiou":
         return 0.18
-    elif ch == " ":
+    if ch == " ":
         return 0.12
     return 0.10
 
 
-def envelope(n):
+def env(n):
     a = int(n * 0.15)
     r = int(n * 0.25)
 
-    env = np.ones(n)
+    e = np.ones(n)
     if a > 0:
-        env[:a] = np.linspace(0, 1, a)
+        e[:a] = np.linspace(0, 1, a)
     if r > 0:
-        env[-r:] = np.linspace(1, 0, r)
+        e[-r:] = np.linspace(1, 0, r)
+    return e
 
-    return env
 
-
-def synth_vowel(freqs, dur):
-    t = np.linspace(0, dur, int(SR * dur), False)
+def synth_vowel(freqs, d):
+    t = np.linspace(0, d, int(SR * d), False)
     sig = sum(np.sin(2 * np.pi * f * t) for f in freqs)
     sig /= len(freqs)
-    return sig * envelope(len(sig))
+    return sig * env(len(sig))
 
 
-def synth_voiced(base, dur):
-    t = np.linspace(0, dur, int(SR * dur), False)
-    sig = (
-        np.sin(2 * np.pi * base * t) +
-        0.5 * np.sin(2 * np.pi * base * 2 * t)
-    )
-    return sig * envelope(len(sig))
+def synth_voiced(base, d):
+    t = np.linspace(0, d, int(SR * d), False)
+    sig = np.sin(2 * np.pi * base * t) + 0.5 * np.sin(2 * np.pi * base * 2 * t)
+    return sig * env(len(sig))
 
 
-def synth_noise(dur):
-    n = int(SR * dur)
+def synth_noise(d):
+    n = int(SR * d)
     noise = np.random.uniform(-1, 1, n)
-    return noise * envelope(n) * 0.6
+    return noise * env(n) * 0.6
 
 
-def text_to_signal(text):
-    signal = []
+def text_to_audio(text):
+    out = []
 
     for ch in text.lower():
-        dur = duration_for(ch)
+        d = duration(ch)
 
         if ch == " ":
-            signal.append(np.zeros(int(SR * dur)))
+            out.append(np.zeros(int(SR * d)))
             continue
 
         typ, val = PHONEMES.get(ch, ("noise", None))
 
         if typ == "vowel":
-            seg = synth_vowel(val, dur)
+            out.append(synth_vowel(val, d))
         elif typ == "voiced":
-            seg = synth_voiced(val, dur)
+            out.append(synth_voiced(val, d))
         else:
-            seg = synth_noise(dur)
+            out.append(synth_noise(d))
 
-        signal.append(seg)
+    sig = np.concatenate(out)
+    sig = np.convolve(sig, np.ones(300)/300, mode='same')
 
-    full = np.concatenate(signal)
-    smooth = np.convolve(full, np.ones(300)/300, mode='same')
-
-    return smooth
+    return sig
 
 
 def encode_speech(text):
-    raw = text_to_signal(text)
-
-    raw = raw / np.max(np.abs(raw))
-    raw = (raw * 32767).astype(np.int16)
-
-    return raw
+    sig = text_to_audio(text)
+    sig = sig / np.max(np.abs(sig))
+    return (sig * 32767).astype(np.int16)
