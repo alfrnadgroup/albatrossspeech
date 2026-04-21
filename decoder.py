@@ -1,5 +1,5 @@
-﻿import numpy as np
-from scipy.io.wavfile import read
+﻿import wave
+import numpy as np
 
 SR = 44100
 DURATION = 0.12
@@ -11,6 +11,9 @@ CHARSET = "abcdefghijklmnopqrstuvwxyz0123456789 .,"
 index_to_char = {i: c for i, c in enumerate(CHARSET)}
 
 
+# -------------------------
+# FFT
+# -------------------------
 def detect_freq(frame):
     fft = np.fft.rfft(frame)
     freqs = np.fft.rfftfreq(len(frame), 1 / SR)
@@ -19,16 +22,28 @@ def detect_freq(frame):
 
 def freq_to_char(freq):
     idx = int(round((freq - BASE_FREQ) / STEP))
+
     if idx < 0 or idx >= len(CHARSET):
         return "?"
+
     return index_to_char[idx]
 
 
-def decode(filename):
-    sr, data = read(filename)
+# -------------------------
+# PURE WAV READER (NO SCIPY)
+# -------------------------
+def read_wav(filename):
+    with wave.open(filename, "rb") as wf:
+        frames = wf.readframes(wf.getnframes())
+        audio = np.frombuffer(frames, dtype=np.int16)
+    return SR, audio
 
-    if len(data.shape) > 1:
-        data = data[:, 0]
+
+# -------------------------
+# DECODE
+# -------------------------
+def decode(filename):
+    sr, data = read_wav(filename)
 
     frame_size = int(SR * DURATION)
 
@@ -36,6 +51,7 @@ def decode(filename):
 
     for i in range(0, len(data), frame_size):
         frame = data[i:i + frame_size]
+
         if len(frame) < frame_size:
             break
 
